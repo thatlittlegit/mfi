@@ -29,6 +29,7 @@ help (const char *progname)
       "  --help, -h            print this help information\n"
       "  --version, -V         print the version number and license\n"
       "  --command, -c         print the command that will be run on startup\n"
+      "  --fake, -F            run even if we aren't PID1 (for testing)\n"
       "\n"
       "Report bugs to <https://github.com/thatlittlegit/mfi>.\n",
       progname);
@@ -61,19 +62,20 @@ print_command (void)
 }
 
 static int
-parse_arguments (int argc, char **argv)
+parse_arguments (int argc, char **argv, int *fake)
 {
   static const struct option OPTIONS[]
       = { { "help", no_argument, NULL, 'h' },
           { "version", no_argument, NULL, 'V' },
           { "command", no_argument, NULL, 'c' },
+          { "fake", no_argument, NULL, 'F' },
           { NULL, 0, 0, 0 } };
 
   assert (argc > 0);
 
   for (;;)
     {
-      int chr = getopt_long (argc, argv, ":hVc", OPTIONS, NULL);
+      int chr = getopt_long (argc, argv, ":hVcF", OPTIONS, NULL);
       if (chr < 0)
         break;
 
@@ -88,6 +90,9 @@ parse_arguments (int argc, char **argv)
         case 'c':
           print_command ();
           return 0;
+        case 'F':
+          *fake = 1;
+          continue;
         default:
           fprintf (stderr,
                    "Unknown parameter -%c\n"
@@ -99,6 +104,11 @@ parse_arguments (int argc, char **argv)
 
   return 1;
 }
+
+static int
+should_run (void)
+{
+  return getpid () == 1;
 }
 
 static int
@@ -175,6 +185,7 @@ spawn_command (int stdinput, int stdoutput, int commfd, char *const command[])
 int
 main (int argc, char **argv)
 {
+  int fake = 0;
   int result;
   int commfd;
   int consolefd_in;
@@ -184,10 +195,13 @@ main (int argc, char **argv)
 
   if (argc > 1)
     {
-      int ret = parse_arguments (argc, argv);
+      int ret = parse_arguments (argc, argv, &fake);
       if (ret <= 0)
         return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
     }
+
+  if (!fake && !should_run ())
+    return EXIT_FAILURE;
 
   result = setup_stdio (&consolefd_in, &consolefd_out, &commfd);
   if (result < 0)
