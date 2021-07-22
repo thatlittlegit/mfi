@@ -42,7 +42,9 @@ version (void)
 static void
 print_command (void)
 {
-  for (int i = 0; MFI_COMMAND[i] != NULL; ++i)
+  int i;
+
+  for (i = 0; MFI_COMMAND[i] != NULL; ++i)
     {
       fputs (MFI_COMMAND[i], stdout);
       fputc (' ', stdout);
@@ -80,7 +82,7 @@ parse_arguments (int argc, char **argv)
           fprintf (stderr,
                    "Unknown parameter -%c\n"
                    "Usage: %s [-hVc]\n",
-                   optopt);
+                   optopt, argv[0]);
           return -1;
         }
     }
@@ -95,4 +97,6 @@ main (int argc, char **argv)
       if (ret <= 0)
         return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
     }
+
+  return EXIT_SUCCESS;
 }
