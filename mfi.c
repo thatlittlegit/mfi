@@ -1,9 +1,12 @@
 #include <assert.h>
 #include <getopt.h>
+#include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 
-static const char *MFI_COMMAND[] = { "/bin/echo", "hello, world", NULL };
+/* NOTE this is not const because posix_spawn demands a char *const[] */
+static char *const MFI_COMMAND[] = { "/bin/echo", "hello, world", NULL };
 
 static void
 help (const char *progname)
@@ -88,9 +91,26 @@ parse_arguments (int argc, char **argv)
     }
 }
 
+static pid_t
+spawn_command (char *const command[])
+{
+  int result;
+  pid_t ret;
+
+  result = posix_spawn (&ret, command[0], NULL, NULL, command, NULL);
+
+  if (result < 0)
+    return result;
+
+  return ret;
+}
+
 int
 main (int argc, char **argv)
 {
+  pid_t special_pid;
+  pid_t problem_child;
+
   if (argc > 1)
     {
       int ret = parse_arguments (argc, argv);
@@ -98,5 +118,18 @@ main (int argc, char **argv)
         return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
     }
 
-  return EXIT_SUCCESS;
+  special_pid = spawn_command (MFI_COMMAND);
+  if (special_pid < 0)
+    return EXIT_FAILURE;
+
+  for (;;)
+    {
+      problem_child = wait (NULL);
+      if (problem_child != special_pid)
+        continue;
+
+      special_pid = spawn_command (MFI_COMMAND);
+      if (special_pid < 0)
+        return EXIT_FAILURE;
+    }
 }
