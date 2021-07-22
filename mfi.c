@@ -1,16 +1,34 @@
 #define _GNU_SOURCE
 
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 /* NOTE this is not const because posix_spawn demands a char *const[] */
 static char *const MFI_COMMAND[] = { "/bin/echo", "hello, world", NULL };
+
+#define DISTRO_FAULT 1
+enum fail_reason
+{
+  FAIL_INAPPROPRIATE = 0,
+  FAIL_COULDNTSPAWN = 1,
+  FAIL_COULDNTSTDIO = 2,
+  _FAIL_LAST
+};
+
+const char *const ERROR_MESSAGES[] = {
+  "not running as PID1, consider '--fake' (see mfi(1))",
+  "couldn't spawn main command (is it missing?)",
+  "couldn't configure file descriptors",
+};
 
 static void
 help (const char *progname)
@@ -103,6 +121,30 @@ parse_arguments (int argc, char **argv, int *fake)
     }
 
   return 1;
+}
+
+static void
+fail (enum fail_reason fail_reason)
+{
+  static const struct timespec spec = { 5, 0 };
+
+  fprintf (
+      stderr,
+      "\n"
+      "mfi: a critical error has occurred, and your computer must reset.\n"
+      "mfi:\n"
+      "mfi: error code MFI-%d (%scontact your distributor)\n"
+      "mfi:  > %s\n"
+      "mfi:\n"
+      "mfi: errno = %d (%s)\n"
+      "mfi:\n"
+      "mfi: mfi will exit, maybe panicking your kernel, in five seconds.\n",
+      fail_reason, (fail_reason & DISTRO_FAULT) ? "probably an mfi bug, " : "",
+      ERROR_MESSAGES[fail_reason], errno, strerror (errno));
+
+  nanosleep (&spec, NULL);
+  raise (SIGABRT);
+  exit (EXIT_FAILURE);
 }
 
 static int
@@ -201,16 +243,16 @@ main (int argc, char **argv)
     }
 
   if (!fake && !should_run ())
-    return EXIT_FAILURE;
+    fail (FAIL_INAPPROPRIATE);
 
   result = setup_stdio (&consolefd_in, &consolefd_out, &commfd);
   if (result < 0)
-    return EXIT_FAILURE;
+    fail (FAIL_COULDNTSTDIO);
 
   special_pid
       = spawn_command (consolefd_in, consolefd_out, commfd, MFI_COMMAND);
   if (special_pid < 0)
-    return EXIT_FAILURE;
+    fail (FAIL_COULDNTSPAWN);
 
   for (;;)
     {
@@ -221,6 +263,6 @@ main (int argc, char **argv)
       special_pid
           = spawn_command (consolefd_in, consolefd_out, commfd, MFI_COMMAND);
       if (special_pid < 0)
-        return EXIT_FAILURE;
+        fail (FAIL_COULDNTSPAWN);
     }
 }
