@@ -74,6 +74,9 @@ parse_arguments (int argc, char **argv)
   for (;;)
     {
       int chr = getopt_long (argc, argv, ":hVc", OPTIONS, NULL);
+      if (chr < 0)
+        break;
+
       switch (chr)
         {
         case 'h':
@@ -93,6 +96,9 @@ parse_arguments (int argc, char **argv)
           return -1;
         }
     }
+
+  return 1;
+}
 }
 
 static int
