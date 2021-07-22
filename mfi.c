@@ -232,8 +232,7 @@ main (int argc, char **argv)
   int commfd;
   int consolefd_in;
   int consolefd_out;
-  pid_t special_pid;
-  pid_t problem_child;
+  pid_t special_pid = 0;
 
   if (argc > 1)
     {
@@ -249,20 +248,16 @@ main (int argc, char **argv)
   if (result < 0)
     fail (FAIL_COULDNTSTDIO);
 
-  special_pid
-      = spawn_command (consolefd_in, consolefd_out, commfd, MFI_COMMAND);
-  if (special_pid < 0)
-    fail (FAIL_COULDNTSPAWN);
-
   for (;;)
     {
-      problem_child = wait (NULL);
-      if (problem_child != special_pid)
-        continue;
+      pid_t problem_child = wait (NULL);
 
-      special_pid
-          = spawn_command (consolefd_in, consolefd_out, commfd, MFI_COMMAND);
-      if (special_pid < 0)
-        fail (FAIL_COULDNTSPAWN);
+      if (problem_child == special_pid || errno == ECHILD)
+        {
+          special_pid = spawn_command (consolefd_in, consolefd_out, commfd,
+                                       MFI_COMMAND);
+          if (special_pid < 0)
+            fail (FAIL_COULDNTSPAWN);
+        }
     }
 }
