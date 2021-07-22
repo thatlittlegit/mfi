@@ -1,9 +1,13 @@
+#define _GNU_SOURCE
+
 #include <assert.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 /* NOTE this is not const because posix_spawn demands a char *const[] */
 static char *const MFI_COMMAND[] = { "/bin/echo", "hello, world", NULL };
@@ -91,13 +95,70 @@ parse_arguments (int argc, char **argv)
     }
 }
 
+static int
+setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd)
+{
+  int pipes[2];
+  int consolefd_out_;
+  int consolefd_in_;
+
+  assert (consolefd_in != NULL);
+  assert (consolefd_out != NULL);
+  assert (commfd != NULL);
+
+  consolefd_out_ = dup (STDOUT_FILENO);
+  if (consolefd_out_ < 0)
+    goto cleanup_none;
+
+  consolefd_in_ = dup (STDIN_FILENO);
+  if (consolefd_in_ < 0)
+    goto cleanup_consolefd_out;
+
+  if (pipe2 (pipes, O_CLOEXEC) < 0)
+    goto cleanup_consolefd_in;
+
+  if (dup2 (pipes[1], STDOUT_FILENO) < 0)
+    goto cleanup_pipes;
+
+  if (dup2 (pipes[1], STDERR_FILENO) < 0)
+    goto cleanup_pipes;
+
+  close (STDIN_FILENO);
+
+  *consolefd_out = consolefd_out_;
+  *consolefd_in = consolefd_in_;
+  *commfd = pipes[0];
+
+  return 0;
+
+cleanup_pipes:
+  close (pipes[0]);
+  close (pipes[1]);
+cleanup_consolefd_in:
+  close (consolefd_in_);
+cleanup_consolefd_out:
+  close (consolefd_out_);
+cleanup_none:
+  return -1;
+}
+
 static pid_t
-spawn_command (char *const command[])
+spawn_command (int stdinput, int stdoutput, int commfd, char *const command[])
 {
   int result;
   pid_t ret;
+  /* TODO allocate and set up at startup */
+  posix_spawn_file_actions_t actions;
 
-  result = posix_spawn (&ret, command[0], NULL, NULL, command, NULL);
+  posix_spawn_file_actions_init (&actions);
+  posix_spawn_file_actions_adddup2 (&actions, stdinput, STDIN_FILENO);
+  posix_spawn_file_actions_adddup2 (&actions, stdoutput, STDOUT_FILENO);
+  posix_spawn_file_actions_adddup2 (&actions, stdoutput, STDERR_FILENO);
+  posix_spawn_file_actions_adddup2 (&actions, commfd, 3);
+
+  result = posix_spawn (&ret, command[0], &actions, NULL, command, NULL);
+
+  posix_spawn_file_actions_destroy (&actions);
 
   if (result < 0)
     return result;
@@ -108,6 +169,10 @@ spawn_command (char *const command[])
 int
 main (int argc, char **argv)
 {
+  int result;
+  int commfd;
+  int consolefd_in;
+  int consolefd_out;
   pid_t special_pid;
   pid_t problem_child;
 
@@ -118,7 +183,12 @@ main (int argc, char **argv)
         return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
     }
 
-  special_pid = spawn_command (MFI_COMMAND);
+  result = setup_stdio (&consolefd_in, &consolefd_out, &commfd);
+  if (result < 0)
+    return EXIT_FAILURE;
+
+  special_pid
+      = spawn_command (consolefd_in, consolefd_out, commfd, MFI_COMMAND);
   if (special_pid < 0)
     return EXIT_FAILURE;
 
@@ -128,7 +198,8 @@ main (int argc, char **argv)
       if (problem_child != special_pid)
         continue;
 
-      special_pid = spawn_command (MFI_COMMAND);
+      special_pid
+          = spawn_command (consolefd_in, consolefd_out, commfd, MFI_COMMAND);
       if (special_pid < 0)
         return EXIT_FAILURE;
     }
