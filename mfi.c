@@ -8,9 +8,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+
+#define REQUIRED_FDS 7
 
 /* NOTE this is not const because posix_spawn demands a char *const[] */
 static char *const MFI_COMMAND[] = { "/bin/echo", "hello, world", NULL };
@@ -23,6 +26,7 @@ enum fail_reason
   FAIL_COULDNTSTDIO = 2,
   FAIL_COULDNTSIGNAL = 4,
   FAIL_FATALSIGNAL = 6,
+  FAIL_RLIMITS = 8,
   _FAIL_LAST
 };
 
@@ -34,6 +38,8 @@ const char *const ERROR_MESSAGES[] = {
   "couldn't initialize signal handlers",
   NULL,
   "received a fatal signal",
+  NULL,
+  "system resource limits were too low",
 };
 
 static void
@@ -207,6 +213,28 @@ setup_signals (void)
 }
 
 static int
+check_rlimits (void)
+{
+  struct rlimit rlim;
+
+  /* only failures are EFAULT or EINVAL, neither of which should apply */
+  if (getrlimit (RLIMIT_NOFILE, &rlim) < 0)
+    return -1;
+
+  if (rlim.rlim_cur > REQUIRED_FDS)
+    return 0;
+
+  if (rlim.rlim_max < REQUIRED_FDS)
+    return -1;
+
+  rlim.rlim_cur = rlim.rlim_max;
+  if (setrlimit (RLIMIT_NOFILE, &rlim) < 0)
+    return -1;
+
+  return 0;
+}
+
+static int
 setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd)
 {
   int pipes[2];
@@ -296,6 +324,10 @@ main (int argc, char **argv)
 
   if (!fake && !should_run ())
     fail (FAIL_INAPPROPRIATE);
+
+  result = check_rlimits ();
+  if (result < 0)
+    fail (FAIL_RLIMITS);
 
   result = setup_signals ();
   if (result < 0)
