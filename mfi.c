@@ -42,6 +42,11 @@ const char *const ERROR_MESSAGES[] = {
   "system resource limits were too low",
 };
 
+struct arguments
+{
+  int fake;
+};
+
 static void
 help (const char *progname)
 {
@@ -92,7 +97,7 @@ print_command (void)
 }
 
 static int
-parse_arguments (int argc, char **argv, int *fake)
+parse_arguments (int argc, char **argv, struct arguments *args)
 {
   static const struct option OPTIONS[]
       = { { "help", no_argument, NULL, 'h' },
@@ -121,7 +126,7 @@ parse_arguments (int argc, char **argv, int *fake)
           print_command ();
           return 0;
         case 'F':
-          *fake = 1;
+          args->fake = 1;
           continue;
         default:
           fprintf (stderr,
@@ -308,21 +313,24 @@ spawn_command (int stdinput, int stdoutput, int commfd, char *const command[])
 int
 main (int argc, char **argv)
 {
-  int fake = 0;
+  struct arguments args;
+
   int result;
   int commfd;
   int consolefd_in;
   int consolefd_out;
   pid_t special_pid = 0;
 
+  memset (&args, 0, sizeof (struct arguments));
+
   if (argc > 1)
     {
-      int ret = parse_arguments (argc, argv, &fake);
+      int ret = parse_arguments (argc, argv, &args);
       if (ret <= 0)
         return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
     }
 
-  if (!fake && !should_run ())
+  if (!args.fake && !should_run ())
     fail (FAIL_INAPPROPRIATE);
 
   result = check_rlimits ();
