@@ -45,6 +45,7 @@ const char *const ERROR_MESSAGES[] = {
 struct arguments
 {
   int fake;
+  int no_sigint;
 };
 
 static void
@@ -52,22 +53,25 @@ help (const char *progname)
 {
   assert (progname != NULL);
 
-  fprintf (
-      stdout,
-      "mfi (minimum feasable init) is a tiny program that "
-      "acts as PID1 and tries not to\ndie, to prevent kernel panics.\n"
-      "\n"
-      "Usage: %s [-hVc]\n"
-      "\n"
-      "Options:\n"
-      "\n"
-      "  --help, -h            print this help information\n"
-      "  --version, -V         print the version number and license\n"
-      "  --command, -c         print the command that will be run on startup\n"
-      "  --fake, -F            run even if we aren't PID1 (for testing)\n"
-      "\n"
-      "Report bugs to <https://github.com/thatlittlegit/mfi>.\n",
-      progname);
+  fprintf (stdout,
+           "mfi (minimum feasable init) is a tiny program that "
+           "acts as PID1 and tries not to\ndie, to prevent kernel panics.\n"
+           "\n"
+           "Usage: %s [-hVc]\n"
+           "\n"
+           "Options:\n"
+           "\n"
+           "  --help, -h            print this help information\n"
+           "  --version, -V         print the version number and license\n",
+           progname);
+
+  fprintf (stdout,
+           "  --command, -c         print the command that will be run on "
+           "startup\n"
+           "  --fake, -F            run even if we aren't PID1 (for testing)\n"
+           "  --no-signals, -S      don't connect signal handlers for SIGINT\n"
+           "\n"
+           "Report bugs to <https://github.com/thatlittlegit/mfi>.\n");
 }
 
 static void
@@ -104,13 +108,14 @@ parse_arguments (int argc, char **argv, struct arguments *args)
           { "version", no_argument, NULL, 'V' },
           { "command", no_argument, NULL, 'c' },
           { "fake", no_argument, NULL, 'F' },
+          { "no-signals", no_argument, NULL, 'S' },
           { NULL, 0, 0, 0 } };
 
   assert (argc > 0);
 
   for (;;)
     {
-      int chr = getopt_long (argc, argv, ":hVcF", OPTIONS, NULL);
+      int chr = getopt_long (argc, argv, ":hVcFS", OPTIONS, NULL);
       if (chr < 0)
         break;
 
@@ -127,6 +132,9 @@ parse_arguments (int argc, char **argv, struct arguments *args)
           return 0;
         case 'F':
           args->fake = 1;
+          continue;
+        case 'S':
+          args->no_sigint = 1;
           continue;
         default:
           fprintf (stderr,
@@ -181,7 +189,7 @@ fatal_signal (int signum, siginfo_t *info, void *context)
 }
 
 static int
-setup_signals (void)
+setup_signals (int include_sigint)
 {
   sigset_t block;
   struct sigaction action;
@@ -201,6 +209,10 @@ setup_signals (void)
 
   /* we're making ourselves crash */
   sigdelset (&block, SIGABRT);
+
+  /* user interrupt */
+  if (!include_sigint)
+    sigdelset (&block, SIGINT);
 
   sigprocmask (SIG_SETMASK, &block, NULL);
 
@@ -337,7 +349,7 @@ main (int argc, char **argv)
   if (result < 0)
     fail (FAIL_RLIMITS);
 
-  result = setup_signals ();
+  result = setup_signals (!args.no_sigint);
   if (result < 0)
     fail (FAIL_COULDNTSIGNAL);
 
