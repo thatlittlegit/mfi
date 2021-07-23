@@ -21,6 +21,8 @@ enum fail_reason
   FAIL_INAPPROPRIATE = 0,
   FAIL_COULDNTSPAWN = 1,
   FAIL_COULDNTSTDIO = 2,
+  FAIL_COULDNTSIGNAL = 4,
+  FAIL_FATALSIGNAL = 6,
   _FAIL_LAST
 };
 
@@ -28,6 +30,10 @@ const char *const ERROR_MESSAGES[] = {
   "not running as PID1, consider '--fake' (see mfi(1))",
   "couldn't spawn main command (is it missing?)",
   "couldn't configure file descriptors",
+  NULL,
+  "couldn't initialize signal handlers",
+  NULL,
+  "received a fatal signal",
 };
 
 static void
@@ -153,6 +159,53 @@ should_run (void)
   return getpid () == 1;
 }
 
+static void
+fatal_signal (int signum, siginfo_t *info, void *context)
+{
+  (void)signum;
+  (void)info;
+  (void)context;
+
+  fail (FAIL_FATALSIGNAL);
+}
+
+static int
+setup_signals (void)
+{
+  sigset_t block;
+  struct sigaction action;
+
+  sigemptyset (&block);
+  sigfillset (&block);
+
+  /* we can't catch anyways */
+  sigdelset (&block, SIGKILL);
+  sigdelset (&block, SIGSTOP);
+
+  /* unspecified to block */
+  sigdelset (&block, SIGBUS);
+  sigdelset (&block, SIGFPE);
+  sigdelset (&block, SIGILL);
+  sigdelset (&block, SIGSEGV);
+
+  /* we're making ourselves crash */
+  sigdelset (&block, SIGABRT);
+
+  sigprocmask (SIG_SETMASK, &block, NULL);
+
+  action.sa_sigaction = fatal_signal;
+  action.sa_mask = block;
+  action.sa_flags = SA_SIGINFO;
+  action.sa_restorer = NULL;
+  sigaction (SIGBUS, &action, NULL);
+  sigaction (SIGFPE, &action, NULL);
+  sigaction (SIGILL, &action, NULL);
+  sigaction (SIGSEGV, &action, NULL);
+  sigaction (SIGABRT, &action, NULL);
+
+  return 0;
+}
+
 static int
 setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd)
 {
@@ -243,6 +296,10 @@ main (int argc, char **argv)
 
   if (!fake && !should_run ())
     fail (FAIL_INAPPROPRIATE);
+
+  result = setup_signals ();
+  if (result < 0)
+    fail (FAIL_COULDNTSIGNAL);
 
   result = setup_stdio (&consolefd_in, &consolefd_out, &commfd);
   if (result < 0)
