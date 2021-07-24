@@ -212,7 +212,7 @@ fatal_signal (int signum, siginfo_t *info, void *context)
       break;
     }
 
-  fail (FAIL_FATALSIGNAL);
+  fail_ex (FAIL_FATALSIGNAL, text);
 }
 
 static int
