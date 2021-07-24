@@ -314,8 +314,6 @@ int
 main (int argc, char **argv)
 {
   struct arguments args;
-
-  int result;
   int commfd;
   int consolefd_in;
   int consolefd_out;
@@ -330,16 +328,13 @@ main (int argc, char **argv)
         return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
     }
 
-  result = check_rlimits ();
-  if (result < 0)
+  if (check_rlimits () < 0)
     fail (FAIL_RLIMITS);
 
-  result = setup_signals (!args.no_sigint);
-  if (result < 0)
+  if (setup_signals (!args.no_sigint) < 0)
     fail (FAIL_COULDNTSIGNAL);
 
-  result = setup_stdio (&consolefd_in, &consolefd_out, &commfd);
-  if (result < 0)
+  if (setup_stdio (&consolefd_in, &consolefd_out, &commfd) < 0)
     fail (FAIL_COULDNTSTDIO);
 
   for (;;)
