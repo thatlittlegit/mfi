@@ -300,10 +300,10 @@ setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd)
   if (pipe2 (pipes, O_CLOEXEC) < 0)
     goto cleanup_consolefd_in;
 
-  if (dup3 (pipes[1], STDOUT_FILENO, O_CLOEXEC) < 0)
+  if (dup3 (STDOUT_FILENO, STDERR_FILENO, O_CLOEXEC) < 0)
     goto cleanup_pipes;
 
-  if (dup3 (pipes[1], STDERR_FILENO, O_CLOEXEC) < 0)
+  if (dup3 (pipes[1], STDOUT_FILENO, O_CLOEXEC) < 0)
     goto cleanup_pipes;
 
   close (STDIN_FILENO);
