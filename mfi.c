@@ -44,7 +44,6 @@ const char *const ERROR_MESSAGES[] = {
 
 struct arguments
 {
-  int fake;
   int no_sigint;
 };
 
@@ -68,7 +67,6 @@ help (const char *progname)
   fprintf (stdout,
            "  --command, -c         print the command that will be run on "
            "startup\n"
-           "  --fake, -F            run even if we aren't PID1 (for testing)\n"
            "  --no-signals, -S      don't connect signal handlers for SIGINT\n"
            "\n"
            "Report bugs to <https://github.com/thatlittlegit/mfi>.\n");
@@ -107,7 +105,6 @@ parse_arguments (int argc, char **argv, struct arguments *args)
       = { { "help", no_argument, NULL, 'h' },
           { "version", no_argument, NULL, 'V' },
           { "command", no_argument, NULL, 'c' },
-          { "fake", no_argument, NULL, 'F' },
           { "no-signals", no_argument, NULL, 'S' },
           { NULL, 0, 0, 0 } };
 
@@ -115,7 +112,7 @@ parse_arguments (int argc, char **argv, struct arguments *args)
 
   for (;;)
     {
-      int chr = getopt_long (argc, argv, ":hVcFS", OPTIONS, NULL);
+      int chr = getopt_long (argc, argv, ":hVcS", OPTIONS, NULL);
       if (chr < 0)
         break;
 
@@ -130,9 +127,6 @@ parse_arguments (int argc, char **argv, struct arguments *args)
         case 'c':
           print_command ();
           return 0;
-        case 'F':
-          args->fake = 1;
-          continue;
         case 'S':
           args->no_sigint = 1;
           continue;
@@ -170,12 +164,6 @@ fail (enum fail_reason fail_reason)
   nanosleep (&spec, NULL);
   raise (SIGABRT);
   exit (EXIT_FAILURE);
-}
-
-static int
-should_run (void)
-{
-  return getpid () == 1;
 }
 
 static void
@@ -341,9 +329,6 @@ main (int argc, char **argv)
       if (ret <= 0)
         return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
     }
-
-  if (!args.fake && !should_run ())
-    fail (FAIL_INAPPROPRIATE);
 
   result = check_rlimits ();
   if (result < 0)
