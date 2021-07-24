@@ -142,9 +142,13 @@ parse_arguments (int argc, char **argv, struct arguments *args)
   return 1;
 }
 
+#define fail(r) fail_ex (r, "(no additional information is available)")
 static void
-fail (enum fail_reason fail_reason)
+fail_ex (enum fail_reason fail_reason, const char *additional)
 {
+  const char *fault
+      = (fail_reason & DISTRO_FAULT) ? "probably an mfi bug, " : "";
+
   static const struct timespec spec = { 5, 0 };
 
   fprintf (
@@ -157,9 +161,11 @@ fail (enum fail_reason fail_reason)
       "mfi:\n"
       "mfi: errno = %d (%s)\n"
       "mfi:\n"
+      "mfi: %s\n"
+      "mfi:\n"
       "mfi: mfi will exit, maybe panicking your kernel, in five seconds.\n",
-      fail_reason, (fail_reason & DISTRO_FAULT) ? "probably an mfi bug, " : "",
-      ERROR_MESSAGES[fail_reason], errno, strerror (errno));
+      fail_reason, fault, ERROR_MESSAGES[fail_reason], errno, strerror (errno),
+      additional);
 
   nanosleep (&spec, NULL);
   raise (SIGABRT);
@@ -169,9 +175,31 @@ fail (enum fail_reason fail_reason)
 static void
 fatal_signal (int signum, siginfo_t *info, void *context)
 {
-  (void)signum;
-  (void)info;
+  static char text[64];
   (void)context;
+
+  memset (text, 0, sizeof (text));
+
+  switch (signum)
+    {
+    case SIGSEGV:
+    case SIGBUS:
+      snprintf (text, sizeof (text), "(faulted at %p)", info->si_addr);
+      break;
+    case SIGFPE:
+      snprintf (text, sizeof (text), "(floating-point exception?!)");
+      break;
+    case SIGILL:
+      snprintf (text, sizeof (text), "(illegal instruction at %p)",
+                info->si_addr);
+      break;
+    case SIGABRT:
+      snprintf (text, sizeof (text), "(assertion failure)");
+      break;
+    default:
+      snprintf (text, sizeof (text), "(unknown signal #%d)", signum);
+      break;
+    }
 
   fail (FAIL_FATALSIGNAL);
 }
