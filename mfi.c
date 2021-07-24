@@ -275,9 +275,10 @@ setup_signals (int enable_mask)
   sigset_t block;
   struct sigaction action;
 
+  sigemptyset (&block);
+
   if (enable_mask)
     {
-      sigemptyset (&block);
       sigfillset (&block);
 
       /* we can't catch anyways */
