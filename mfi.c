@@ -149,6 +149,7 @@ fail_ex (enum fail_reason fail_reason, const char *additional)
   const char *fault
       = (fail_reason & DISTRO_FAULT) ? "probably an mfi bug, " : "";
 
+#if MFI_INIT_MESSAGE_STYLE
   static const struct timespec spec = { 5, 0 };
 
   fprintf (
@@ -170,6 +171,16 @@ fail_ex (enum fail_reason fail_reason, const char *additional)
   nanosleep (&spec, NULL);
   raise (SIGABRT);
   exit (EXIT_FAILURE);
+#else
+  fprintf (stderr,
+           "mfi: error MFI-%d [%s]\n"
+           "mfi: errno is %d (%s)\n"
+           "mfi: %s\n"
+           "mfi: exiting, %scontact your distribution for support\n",
+           fail_reason, ERROR_MESSAGES[fail_reason], errno, strerror (errno),
+           additional, fault);
+  exit (EXIT_FAILURE);
+#endif
 }
 
 static void
