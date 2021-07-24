@@ -15,8 +15,8 @@
 
 #define REQUIRED_FDS 7
 
-/* NOTE this is not const because posix_spawn demands a char *const[] */
-static char *const MFI_COMMAND[] = { "/bin/echo", "hello, world", NULL };
+static char *DEFAULT_COMMAND[] = { "/bin/echo", "hello, world", NULL };
+static char **command = DEFAULT_COMMAND;
 
 #define DISTRO_FAULT 1
 enum fail_reason
@@ -56,7 +56,11 @@ help (const char *progname)
            "mfi (minimum feasable init) is a tiny program that "
            "acts as PID1 and tries not to\ndie, to prevent kernel panics.\n"
            "\n"
+#if MFI_CUSTOM_COMMANDS
+           "Usage: %s [-hVc] [command...]\n"
+#else
            "Usage: %s [-hVc]\n"
+#endif
            "\n"
            "Options:\n"
            "\n"
@@ -89,13 +93,30 @@ print_command (void)
 {
   int i;
 
-  for (i = 0; MFI_COMMAND[i] != NULL; ++i)
+  for (i = 0; command[i] != NULL; ++i)
     {
-      fputs (MFI_COMMAND[i], stdout);
+      fputs (command[i], stdout);
       fputc (' ', stdout);
     }
 
   fputc ('\n', stdout);
+}
+
+static int
+set_command (int argc, char **argv)
+{
+  assert (argc > 0);
+  assert (optind < argc);
+
+  if (MFI_CUSTOM_COMMANDS)
+    {
+      command = argv + optind;
+      return 1;
+    }
+
+  fprintf (stderr, "%s: your administrator has disabled custom commands\n",
+           argv[0]);
+  return -1;
 }
 
 static int
@@ -138,6 +159,9 @@ parse_arguments (int argc, char **argv, struct arguments *args)
           return -1;
         }
     }
+
+  if (optind < argc)
+    return set_command (argc, argv);
 
   return 1;
 }
@@ -382,8 +406,8 @@ main (int argc, char **argv)
 
       if (problem_child == special_pid || errno == ECHILD)
         {
-          special_pid = spawn_command (consolefd_in, consolefd_out, commfd,
-                                       MFI_COMMAND);
+          special_pid
+              = spawn_command (consolefd_in, consolefd_out, commfd, command);
           if (special_pid < 0)
             fail (FAIL_COULDNTSPAWN);
         }

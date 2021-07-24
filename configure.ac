@@ -11,5 +11,13 @@ AS_IF([test x"$enable_init_messages" != x"yes"],
 	[AC_DEFINE([MFI_INIT_MESSAGE_STYLE], 0)],
 	[AC_DEFINE([MFI_INIT_MESSAGE_STYLE], 1)])
 
+AC_ARG_ENABLE([custom-commands],
+	[AS_HELP_STRING([--disable-custom-commands],
+			[Disable setting commands with arguments])])
+
+AS_IF([test x"$enable_custom_commands" != x"no"],
+	[AC_DEFINE([MFI_CUSTOM_COMMANDS], 1)],
+	[AC_DEFINE([MFI_CUSTOM_COMMANDS], 0)])
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
