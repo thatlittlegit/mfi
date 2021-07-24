@@ -61,7 +61,7 @@ const char *const ERROR_MESSAGES[] = {
 
 struct arguments
 {
-  int no_sigint;
+  int no_signals;
 };
 
 static void
@@ -166,7 +166,7 @@ parse_arguments (int argc, char **argv, struct arguments *args)
           print_command ();
           return 0;
         case 'S':
-          args->no_sigint = 1;
+          args->no_signals = 1;
           continue;
         default:
           fprintf (stderr,
@@ -257,32 +257,34 @@ fatal_signal (int signum, siginfo_t *info, void *context)
 }
 
 static int
-setup_signals (int include_sigint)
+setup_signals (int enable_mask)
 {
   sigset_t block;
   struct sigaction action;
 
-  sigemptyset (&block);
-  sigfillset (&block);
+  if (enable_mask)
+    {
+      sigemptyset (&block);
+      sigfillset (&block);
 
-  /* we can't catch anyways */
-  sigdelset (&block, SIGKILL);
-  sigdelset (&block, SIGSTOP);
+      /* we can't catch anyways */
+      sigdelset (&block, SIGKILL);
+      sigdelset (&block, SIGSTOP);
 
-  /* unspecified to block */
-  sigdelset (&block, SIGBUS);
-  sigdelset (&block, SIGFPE);
-  sigdelset (&block, SIGILL);
-  sigdelset (&block, SIGSEGV);
+      /* unspecified to block */
+      sigdelset (&block, SIGBUS);
+      sigdelset (&block, SIGFPE);
+      sigdelset (&block, SIGILL);
+      sigdelset (&block, SIGSEGV);
 
-  /* we're making ourselves crash */
-  sigdelset (&block, SIGABRT);
+      /* we're making ourselves crash */
+      sigdelset (&block, SIGABRT);
 
-  /* user interrupt */
-  if (!include_sigint)
-    sigdelset (&block, SIGINT);
+      /* user interrupt */
+      sigdelset (&block, SIGINT);
 
-  sigprocmask (SIG_SETMASK, &block, NULL);
+      sigprocmask (SIG_SETMASK, &block, NULL);
+    }
 
   action.sa_sigaction = fatal_signal;
   action.sa_mask = block;
@@ -411,7 +413,7 @@ main (int argc, char **argv)
   if (check_rlimits () < 0)
     fail (FAIL_RLIMITS);
 
-  if (setup_signals (!args.no_sigint) < 0)
+  if (setup_signals (!args.no_signals) < 0)
     fail (FAIL_COULDNTSIGNAL);
 
   if (setup_stdio (&consolefd_in, &consolefd_out, &commfd) < 0)
