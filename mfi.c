@@ -35,6 +35,8 @@
 static char *DEFAULT_COMMAND[] = { "/bin/echo", "hello, world", NULL };
 static char **command = DEFAULT_COMMAND;
 
+static const char *progname = "mfi";
+
 #define DISTRO_FAULT 1
 enum fail_reason
 {
@@ -65,10 +67,8 @@ struct arguments
 };
 
 static void
-help (const char *progname)
+help (void)
 {
-  assert (progname != NULL);
-
   fprintf (stdout,
            "mfi (minimum feasable init) is a tiny program that "
            "acts as PID1 and tries not to\ndie, to prevent kernel panics.\n"
@@ -132,7 +132,7 @@ set_command (int argc, char **argv)
     }
 
   fprintf (stderr, "%s: your administrator has disabled custom commands\n",
-           argv[0]);
+           progname);
   return -1;
 }
 
@@ -157,7 +157,7 @@ parse_arguments (int argc, char **argv, struct arguments *args)
       switch (chr)
         {
         case 'h':
-          help (argv[0]);
+          help ();
           return 0;
         case 'V':
           version ();
@@ -422,6 +422,9 @@ main (int argc, char **argv)
   pid_t special_pid = 0;
 
   memset (&args, 0, sizeof (struct arguments));
+
+  if (argc > 0)
+    progname = argv[0];
 
   if (argc > 1)
     {
