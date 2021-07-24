@@ -1,4 +1,4 @@
-AC_INIT([mfi], [1])
+AC_INIT([mfi], [1], [https://github.com/thatlittlegit/mfi])
 AM_INIT_AUTOMAKE([foreign])
 
 AC_PROG_CC

@@ -69,7 +69,7 @@ help (const char *progname)
            "startup\n"
            "  --no-signals, -S      don't connect signal handlers for SIGINT\n"
            "\n"
-           "Report bugs to <https://github.com/thatlittlegit/mfi>.\n");
+           "Report bugs to <" PACKAGE_BUGREPORT ">.\n");
 }
 
 static void
