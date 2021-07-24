@@ -256,6 +256,19 @@ fatal_signal (int signum, siginfo_t *info, void *context)
   fail_ex (FAIL_FATALSIGNAL, text);
 }
 
+static void
+recv_sigint (int signum, siginfo_t *info, void *context)
+{
+  assert (signum == SIGINT);
+  assert (info != NULL);
+  (void)context;
+
+  if (info->si_pid == 0)
+    exit (EXIT_SUCCESS);
+
+  fprintf (stdout, "I: ignoring SIGINT from %d\n", info->si_pid);
+}
+
 static int
 setup_signals (int enable_mask)
 {
@@ -295,6 +308,12 @@ setup_signals (int enable_mask)
   sigaction (SIGILL, &action, NULL);
   sigaction (SIGSEGV, &action, NULL);
   sigaction (SIGABRT, &action, NULL);
+
+  if (!enable_mask)
+    {
+      action.sa_sigaction = recv_sigint;
+      sigaction (SIGINT, &action, NULL);
+    }
 
   return 0;
 }
