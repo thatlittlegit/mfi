@@ -388,30 +388,6 @@ cleanup_none:
   return -1;
 }
 
-static pid_t
-spawn_command (int stdinput, int stdoutput, int commfd, char *const command[])
-{
-  int result;
-  pid_t ret;
-  /* TODO allocate and set up at startup */
-  posix_spawn_file_actions_t actions;
-
-  posix_spawn_file_actions_init (&actions);
-  posix_spawn_file_actions_adddup2 (&actions, stdinput, STDIN_FILENO);
-  posix_spawn_file_actions_adddup2 (&actions, stdoutput, STDOUT_FILENO);
-  posix_spawn_file_actions_adddup2 (&actions, stdoutput, STDERR_FILENO);
-  posix_spawn_file_actions_adddup2 (&actions, commfd, 3);
-
-  result = posix_spawn (&ret, command[0], &actions, NULL, command, NULL);
-
-  posix_spawn_file_actions_destroy (&actions);
-
-  if (result < 0)
-    return result;
-
-  return ret;
-}
-
 int
 main (int argc, char **argv)
 {
@@ -420,6 +396,7 @@ main (int argc, char **argv)
   int consolefd_in;
   int consolefd_out;
   pid_t special_pid = 0;
+  posix_spawn_file_actions_t actions;
 
   memset (&args, 0, sizeof (struct arguments));
 
@@ -442,15 +419,21 @@ main (int argc, char **argv)
   if (setup_stdio (&consolefd_in, &consolefd_out, &commfd) < 0)
     fail (FAIL_COULDNTSTDIO);
 
+  posix_spawn_file_actions_init (&actions);
+  posix_spawn_file_actions_adddup2 (&actions, consolefd_in, STDIN_FILENO);
+  posix_spawn_file_actions_adddup2 (&actions, consolefd_out, STDOUT_FILENO);
+  posix_spawn_file_actions_adddup2 (&actions, consolefd_out, STDERR_FILENO);
+  posix_spawn_file_actions_adddup2 (&actions, commfd, 3);
+
   for (;;)
     {
       pid_t problem_child = wait (NULL);
 
       if (problem_child == special_pid || errno == ECHILD)
         {
-          special_pid
-              = spawn_command (consolefd_in, consolefd_out, commfd, command);
-          if (special_pid < 0)
+          if (posix_spawn (&special_pid, command[0], &actions, NULL, command,
+                           NULL)
+              < 0)
             fail (FAIL_COULDNTSPAWN);
         }
     }
