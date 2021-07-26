@@ -68,6 +68,23 @@ struct arguments
 };
 
 static void
+commfd_log (int fd, const char *msg, ...)
+{
+  sigset_t old_mask;
+  sigset_t new_mask;
+  va_list list;
+
+  sigfillset (&new_mask);
+  sigprocmask (SIG_SETMASK, &new_mask, &old_mask);
+
+  va_start (list, msg);
+  vdprintf (fd, msg, list);
+  va_end (list);
+
+  sigprocmask (SIG_SETMASK, &old_mask, NULL);
+}
+
+static void
 help (void)
 {
   fprintf (stdout,
@@ -340,23 +357,6 @@ check_rlimits (void)
     return -1;
 
   return 0;
-}
-
-void
-commfd_log (int fd, const char *msg, ...)
-{
-  sigset_t old_mask;
-  sigset_t new_mask;
-  va_list list;
-
-  sigfillset (&new_mask);
-  sigprocmask (SIG_SETMASK, &new_mask, &old_mask);
-
-  va_start (list, msg);
-  vdprintf (fd, msg, list);
-  va_end (list);
-
-  sigprocmask (SIG_SETMASK, &old_mask, NULL);
 }
 
 int
