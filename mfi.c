@@ -449,6 +449,14 @@ main (int argc, char **argv)
           commfd_log (-1, "I: restarted process as %d\n", special_pid);
           alarm (5);
         }
+      else if (errno == EINTR)
+        {
+          commfd_log (-1, "D: wait() interrupted\n");
+        }
+      else if (problem_child < 0)
+        {
+          commfd_log (-1, "W: wait(NULL) failed: %s\n", strerror (errno));
+        }
       else
         {
           commfd_log (-1, "I: reaped %d\n", problem_child);
