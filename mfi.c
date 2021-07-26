@@ -342,7 +342,8 @@ check_rlimits (void)
 }
 
 static int
-setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd)
+setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd_r,
+             int *commfd_w)
 {
   int pipes[2];
   int consolefd_out_;
@@ -350,7 +351,8 @@ setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd)
 
   assert (consolefd_in != NULL);
   assert (consolefd_out != NULL);
-  assert (commfd != NULL);
+  assert (commfd_r != NULL);
+  assert (commfd_w != NULL);
 
   consolefd_out_ = dup (STDOUT_FILENO);
   if (consolefd_out_ < 0)
@@ -366,14 +368,15 @@ setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd)
   if (dup3 (STDOUT_FILENO, STDERR_FILENO, O_CLOEXEC) < 0)
     goto cleanup_pipes;
 
-  if (dup3 (pipes[1], STDOUT_FILENO, O_CLOEXEC) < 0)
+  if (dup3 (STDERR_FILENO, STDOUT_FILENO, O_CLOEXEC) < 0)
     goto cleanup_pipes;
 
   close (STDIN_FILENO);
 
   *consolefd_out = consolefd_out_;
   *consolefd_in = consolefd_in_;
-  *commfd = pipes[0];
+  *commfd_r = pipes[0];
+  *commfd_w = pipes[1];
 
   return 0;
 
@@ -393,6 +396,7 @@ main (int argc, char **argv)
 {
   struct arguments args;
   int commfd;
+  int commfd_r;
   int consolefd_in;
   int consolefd_out;
   pid_t special_pid = 0;
@@ -416,14 +420,14 @@ main (int argc, char **argv)
   if (setup_signals (!args.no_signals) < 0)
     fail (FAIL_COULDNTSIGNAL);
 
-  if (setup_stdio (&consolefd_in, &consolefd_out, &commfd) < 0)
+  if (setup_stdio (&consolefd_in, &consolefd_out, &commfd_r, &commfd) < 0)
     fail (FAIL_COULDNTSTDIO);
 
   posix_spawn_file_actions_init (&actions);
   posix_spawn_file_actions_adddup2 (&actions, consolefd_in, STDIN_FILENO);
   posix_spawn_file_actions_adddup2 (&actions, consolefd_out, STDOUT_FILENO);
   posix_spawn_file_actions_adddup2 (&actions, consolefd_out, STDERR_FILENO);
-  posix_spawn_file_actions_adddup2 (&actions, commfd, 3);
+  posix_spawn_file_actions_adddup2 (&actions, commfd_r, 3);
 
   for (;;)
     {
