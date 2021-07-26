@@ -255,6 +255,13 @@ fatal_signal (int signum, siginfo_t *info, void *context)
   static char text[64];
   (void)context;
 
+  if (info->si_code != SI_KERNEL
+      || (signum == SIGABRT && info->si_pid == getpid ()))
+    {
+      commfd_log (-1, "I: ignoring garbage signal %d from %d", signum,
+                  info->si_pid);
+    }
+
   memset (text, 0, sizeof (text));
 
   switch (signum)
