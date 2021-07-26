@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <signal.h>
 #include <spawn.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -28,7 +29,6 @@
 #include <string.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
-#include <time.h>
 #include <unistd.h>
 
 #define REQUIRED_FDS 7
