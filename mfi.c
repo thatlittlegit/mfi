@@ -37,6 +37,7 @@ static char *DEFAULT_COMMAND[] = { "/bin/echo", "hello, world", NULL };
 static char **command = DEFAULT_COMMAND;
 
 static const char *progname = "mfi";
+static pid_t special_pid = 0;
 
 #define DISTRO_FAULT 1
 enum fail_reason
@@ -280,6 +281,9 @@ fatal_signal (int signum, siginfo_t *info, void *context)
     case SIGABRT:
       snprintf (text, sizeof (text), "(assertion failure)");
       break;
+    case SIGALRM:
+      snprintf (text, sizeof (text), "(child didn't start in time)");
+      break;
     default:
       snprintf (text, sizeof (text), "(unknown signal #%d)", signum);
       break;
@@ -299,6 +303,23 @@ recv_sigint (int signum, siginfo_t *info, void *context)
     exit (EXIT_SUCCESS);
 
   fprintf (stdout, "I: ignoring SIGINT from %d\n", info->si_pid);
+}
+
+static void
+cancel_alarm (int signum, siginfo_t *info, void *context)
+{
+  (void)context;
+  assert (signum == SIGUSR1);
+  assert (info != NULL);
+
+  if (info->si_pid != special_pid)
+    {
+      commfd_log (-1, "I: fake SIGUSR1 received, ignoring\n");
+      return;
+    }
+
+  alarm (0);
+  commfd_log (-1, "I: just got SIGUSR1 from the child, good to go!\n");
 }
 
 static int
@@ -325,9 +346,13 @@ setup_signals (int enable_mask)
 
       /* we're making ourselves crash */
       sigdelset (&block, SIGABRT);
+      sigdelset (&block, SIGALRM);
 
       /* user interrupt */
       sigdelset (&block, SIGINT);
+
+      /* notification */
+      sigdelset (&block, SIGUSR1);
 
       sigprocmask (SIG_SETMASK, &block, NULL);
     }
@@ -341,12 +366,16 @@ setup_signals (int enable_mask)
   sigaction (SIGILL, &action, NULL);
   sigaction (SIGSEGV, &action, NULL);
   sigaction (SIGABRT, &action, NULL);
+  sigaction (SIGALRM, &action, NULL);
 
   if (!enable_mask)
     {
       action.sa_sigaction = recv_sigint;
       sigaction (SIGINT, &action, NULL);
     }
+
+  action.sa_sigaction = cancel_alarm;
+  sigaction (SIGUSR1, &action, NULL);
 
   return 0;
 }
@@ -378,7 +407,6 @@ main (int argc, char **argv)
 {
   struct arguments args;
   int commfd[2];
-  pid_t special_pid = 0;
   posix_spawn_file_actions_t actions;
 
   memset (&args, 0, sizeof (struct arguments));
@@ -419,6 +447,7 @@ main (int argc, char **argv)
             fail (FAIL_COULDNTSPAWN);
 
           commfd_log (-1, "I: restarted process as %d\n", special_pid);
+          alarm (5);
         }
       else
         {
