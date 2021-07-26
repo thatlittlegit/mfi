@@ -42,5 +42,5 @@ AH_TEMPLATE([MFI_CUSTOM_COMMANDS],
 	[Defines to 1 or 0 depending on if custom commands are permitted.])
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile mfi.1])
 AC_OUTPUT

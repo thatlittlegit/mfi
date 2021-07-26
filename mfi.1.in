@@ -1,0 +1,113 @@
+.TH mfi 1 "2021-07-26" "@PACKAGE_NAME@ @PACKAGE_VERSION@"
+\" Copyright (C) 2021 thatlittlegit
+\"
+\" This program is free software: you can redistribute it and/or modify
+\" it under the terms of the GNU General Public License as published by
+\" the Free Software Foundation, either version 3 of the License, or
+\" (at your option) any later version.
+\"
+\" This program is distributed in the hope that it will be useful,
+\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\" GNU General Public License for more details.
+\"
+\" You should have received a copy of the GNU General Public License
+\" along with this program.  If not, see <http://www.gnu.org/licenses/>.
+\"
+.SH NAME
+mfi \- continually restart a server
+\"
+.SH SYNOPSIS
+mfi [-hVS] [command...]
+\"
+.SH DESCRIPTION
+.BR mfi (1)
+restarts a program constantly, waiting on any children that are
+reparented to it. It was originally meant as a PID1, and thus has some
+odd 'quirks' for non-PID1 use:
+\"
+.RS
+\(bu Unless --no-signals is given, signals are masked by default,
+except for those listed in
+.BR SIGNALS .
+.LP
+\(bu SIGUSR1 must be sent within five seconds of startup to confirm
+success.
+.LP
+\(bu If no command is given, a default command is used instead.
+.RE
+\"
+.SH OPTIONS
+The following options are supported:
+.TP
+.B \-h, \-\-help
+Display the help message and exit.
+.TP
+.B \-V, \-\-version
+Display the version number and copyright information and exit.
+.TP
+.B \-c, \-\-command
+Print the command (escaped) that will be executed.
+.TP
+.B \-S, \-\-no\-signals
+Disable setting of signal handlers.
+\"
+.SH RETURN CODES
+.B mfi
+exits with 0 on success, or 1 on failure.
+\"
+.SH SIGNALS
+.B mfi
+uses signals as a core component of its architecture. The following
+signals will be used in the specified way:
+.SS "Default"
+SIGKILL and SIGSTOP cannot be handled by
+.B mfi
+(see
+.BR sigprocmask (3))
+and thus will be dealt with normally.
+\"
+.SS "Die (if sent by the kernel)"
+SIGSEGV, SIGFPE, SIGBUS and SIGILL indicate a bug in the program, and
+will cause a crash if sent by the kernel.
+
+SIGABRT indicates an assertion failure, and will also only be
+recognized from the kernel and itself.
+
+SIGALRM indicates the five-second timer failed.
+
+SIGINT will be respected if it comes from PID 0 (i.e. the controlling
+terminal).
+\"
+.SS "Special"
+If SIGUSR1 is received from the child, the timer will be unset, since
+the child is clearly alive. (Note that only the child's PID is
+recognized.)
+\"
+.SS "Future"
+SIGUSR2 may be used for something else, perhaps with
+.BR sigqueue (2).
+
+SIGQUIT or SIGTERM may be allowed for graceful shutdown.
+
+SIGIO may be used for IO in a future version while we block on
+.BR wait (2).
+\"
+.SH BUGS
+The program is still too PID1-specific. Only Linux has been tested.
+.SS Reporting
+Report bugs to @PACKAGE_BUGREPORT@.
+\"
+.SH AUTHORS
+thatlittlegit <personal@thatlittlegit.tk>
+\"
+.SH COPYRIGHT
+Copyright 2021 thatlittlegit.
+.PP
+This is free software, under the GNU General Public License, version
+3.0 or later. There is NO warranty; not even for MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+\"
+.SH "SEE ALSO"
+.BR init (1),
+.BR boot (7)

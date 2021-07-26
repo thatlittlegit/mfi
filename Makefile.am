@@ -16,3 +16,4 @@
 CFLAGS += -Werror -Wall -Wextra -Wpedantic -std=c89
 
 sbin_PROGRAMS = mfi
+man_MANS = mfi.1

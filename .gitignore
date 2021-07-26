@@ -1,5 +1,6 @@
 mfi
 config.h
+mfi.1
 
 # Prerequisites
 *.d
