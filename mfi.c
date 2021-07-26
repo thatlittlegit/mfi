@@ -68,17 +68,24 @@ struct arguments
 };
 
 static void
-commfd_log (int fd, const char *msg, ...)
+commfd_log (int gfd, const char *msg, ...)
 {
   sigset_t old_mask;
   sigset_t new_mask;
   va_list list;
+  static int rfd = -1;
+
+  if (rfd < 0)
+    rfd = gfd;
+
+  if (msg == NULL)
+    return;
 
   sigfillset (&new_mask);
   sigprocmask (SIG_SETMASK, &new_mask, &old_mask);
 
   va_start (list, msg);
-  vdprintf (fd, msg, list);
+  vdprintf (gfd < 0 ? rfd : gfd, msg, list);
   va_end (list);
 
   sigprocmask (SIG_SETMASK, &old_mask, NULL);
@@ -382,11 +389,13 @@ main (int argc, char **argv)
   if (check_rlimits () < 0)
     fail (FAIL_RLIMITS);
 
-  if (setup_signals (!args.no_signals) < 0)
-    fail (FAIL_COULDNTSIGNAL);
-
   if (pipe2 (commfd, O_CLOEXEC) < 0)
     fail (FAIL_COULDNTPIPE);
+
+  commfd_log (commfd[1], "I: starting up...\n");
+
+  if (setup_signals (!args.no_signals) < 0)
+    fail (FAIL_COULDNTSIGNAL);
 
   posix_spawn_file_actions_init (&actions);
   posix_spawn_file_actions_adddup2 (&actions, commfd[0], 3);
@@ -402,11 +411,11 @@ main (int argc, char **argv)
               < 0)
             fail (FAIL_COULDNTSPAWN);
 
-          commfd_log (commfd[1], "I: restarted process as %d\n", special_pid);
+          commfd_log (-1, "I: restarted process as %d\n", special_pid);
         }
       else
         {
-          commfd_log (commfd[1], "I: reaped %d\n", problem_child);
+          commfd_log (-1, "I: reaped %d\n", problem_child);
         }
     }
 }
