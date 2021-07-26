@@ -46,7 +46,8 @@ enum fail_reason
   FAIL_COULDNTSPAWN = 1,
   FAIL_COULDNTPIPE = 2,
   FAIL_COULDNTSIGNAL = 4,
-  FAIL_FATALSIGNAL = 6,
+  FAIL_FATALSIGNAL = 5,
+  FAIL_RECVDSIGNAL = 6,
   FAIL_RLIMITS = 8,
   _FAIL_LAST
 };
@@ -57,8 +58,8 @@ const char *const ERROR_MESSAGES[] = {
   "couldn't configure file descriptors",
   NULL,
   "couldn't initialize signal handlers",
-  NULL,
-  "received a fatal signal",
+  "received a fatal signal, our fault",
+  "received a fatal signal, not our fault",
   NULL,
   "system resource limits were too low",
 };
@@ -254,6 +255,7 @@ static void
 fatal_signal (int signum, siginfo_t *info, void *context)
 {
   static char text[64];
+  enum fail_reason reason = FAIL_FATALSIGNAL;
   (void)context;
 
   if (info->si_code != SI_KERNEL
@@ -283,13 +285,14 @@ fatal_signal (int signum, siginfo_t *info, void *context)
       break;
     case SIGALRM:
       snprintf (text, sizeof (text), "(child didn't start in time)");
+      reason = FAIL_RECVDSIGNAL;
       break;
     default:
       snprintf (text, sizeof (text), "(unknown signal #%d)", signum);
       break;
     }
 
-  fail_ex (FAIL_FATALSIGNAL, text);
+  fail_ex (reason, text);
 }
 
 static void
