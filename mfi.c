@@ -43,7 +43,7 @@ enum fail_reason
 {
   FAIL_INAPPROPRIATE = 0,
   FAIL_COULDNTSPAWN = 1,
-  FAIL_COULDNTSTDIO = 2,
+  FAIL_COULDNTPIPE = 2,
   FAIL_COULDNTSIGNAL = 4,
   FAIL_FATALSIGNAL = 6,
   FAIL_RLIMITS = 8,
@@ -342,56 +342,6 @@ check_rlimits (void)
   return 0;
 }
 
-static int
-setup_stdio (int *consolefd_in, int *consolefd_out, int *commfd_r,
-             int *commfd_w)
-{
-  int pipes[2];
-  int consolefd_out_;
-  int consolefd_in_;
-
-  assert (consolefd_in != NULL);
-  assert (consolefd_out != NULL);
-  assert (commfd_r != NULL);
-  assert (commfd_w != NULL);
-
-  consolefd_out_ = dup (STDOUT_FILENO);
-  if (consolefd_out_ < 0)
-    goto cleanup_none;
-
-  consolefd_in_ = dup (STDIN_FILENO);
-  if (consolefd_in_ < 0)
-    goto cleanup_consolefd_out;
-
-  if (pipe2 (pipes, O_CLOEXEC) < 0)
-    goto cleanup_consolefd_in;
-
-  if (dup3 (STDOUT_FILENO, STDERR_FILENO, O_CLOEXEC) < 0)
-    goto cleanup_pipes;
-
-  if (dup3 (STDERR_FILENO, STDOUT_FILENO, O_CLOEXEC) < 0)
-    goto cleanup_pipes;
-
-  close (STDIN_FILENO);
-
-  *consolefd_out = consolefd_out_;
-  *consolefd_in = consolefd_in_;
-  *commfd_r = pipes[0];
-  *commfd_w = pipes[1];
-
-  return 0;
-
-cleanup_pipes:
-  close (pipes[0]);
-  close (pipes[1]);
-cleanup_consolefd_in:
-  close (consolefd_in_);
-cleanup_consolefd_out:
-  close (consolefd_out_);
-cleanup_none:
-  return -1;
-}
-
 void
 commfd_log (int fd, const char *msg, ...)
 {
@@ -413,10 +363,7 @@ int
 main (int argc, char **argv)
 {
   struct arguments args;
-  int commfd;
-  int commfd_r;
-  int consolefd_in;
-  int consolefd_out;
+  int commfd[2];
   pid_t special_pid = 0;
   posix_spawn_file_actions_t actions;
 
@@ -438,14 +385,11 @@ main (int argc, char **argv)
   if (setup_signals (!args.no_signals) < 0)
     fail (FAIL_COULDNTSIGNAL);
 
-  if (setup_stdio (&consolefd_in, &consolefd_out, &commfd_r, &commfd) < 0)
-    fail (FAIL_COULDNTSTDIO);
+  if (pipe2 (commfd, O_CLOEXEC) < 0)
+    fail (FAIL_COULDNTPIPE);
 
   posix_spawn_file_actions_init (&actions);
-  posix_spawn_file_actions_adddup2 (&actions, consolefd_in, STDIN_FILENO);
-  posix_spawn_file_actions_adddup2 (&actions, consolefd_out, STDOUT_FILENO);
-  posix_spawn_file_actions_adddup2 (&actions, consolefd_out, STDERR_FILENO);
-  posix_spawn_file_actions_adddup2 (&actions, commfd_r, 3);
+  posix_spawn_file_actions_adddup2 (&actions, commfd[0], 3);
 
   for (;;)
     {
@@ -458,11 +402,11 @@ main (int argc, char **argv)
               < 0)
             fail (FAIL_COULDNTSPAWN);
 
-          commfd_log (commfd, "I: restarted process as %d\n", special_pid);
+          commfd_log (commfd[1], "I: restarted process as %d\n", special_pid);
         }
       else
         {
-          commfd_log (commfd, "I: reaped %d\n", problem_child);
+          commfd_log (commfd[1], "I: reaped %d\n", problem_child);
         }
     }
 }
