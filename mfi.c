@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -139,8 +140,49 @@ print_command (void)
 
   for (i = 0; command[i] != NULL; ++i)
     {
-      fputs (command[i], stdout);
+      int j;
+      int total_len = 2;
+      int quoted = 0;
+      char *part = strdup ("\"");
+
+      for (j = 0; command[i][j] != '\0'; ++j)
+        {
+          char c = command[i][j];
+          char strc[2];
+
+          if (isspace (c) && !quoted)
+            {
+              quoted = 1;
+            }
+
+          if (c == '"')
+            {
+              quoted = 1;
+              part = realloc (part, ++total_len);
+              strncat (part, "\\", total_len);
+            }
+
+          part = realloc (part, ++total_len);
+          strc[0] = c;
+          strc[1] = '\0';
+          strncat (part, strc, total_len);
+        }
+
+      if (total_len == 2)
+        {
+          quoted = 1;
+        }
+
+      if (quoted)
+        {
+          part = realloc (part, ++total_len);
+          strncat (part, "\"", total_len);
+        }
+
+      fputs (quoted ? part : part + 1, stdout);
       fputc (' ', stdout);
+
+      free (part);
     }
 
   fputc ('\n', stdout);
