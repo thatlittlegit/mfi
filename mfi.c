@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <spawn.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -391,6 +392,23 @@ cleanup_none:
   return -1;
 }
 
+void
+commfd_log (int fd, const char *msg, ...)
+{
+  sigset_t old_mask;
+  sigset_t new_mask;
+  va_list list;
+
+  sigfillset (&new_mask);
+  sigprocmask (SIG_SETMASK, &new_mask, &old_mask);
+
+  va_start (list, msg);
+  vdprintf (fd, msg, list);
+  va_end (list);
+
+  sigprocmask (SIG_SETMASK, &old_mask, NULL);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -439,6 +457,12 @@ main (int argc, char **argv)
                            NULL)
               < 0)
             fail (FAIL_COULDNTSPAWN);
+
+          commfd_log (commfd, "I: restarted process as %d\n", special_pid);
+        }
+      else
+        {
+          commfd_log (commfd, "I: reaped %d\n", problem_child);
         }
     }
 }
