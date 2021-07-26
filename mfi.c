@@ -172,6 +172,8 @@ parse_arguments (int argc, char **argv, struct arguments *args)
           { "command", no_argument, NULL, 'c' },
           { "no-signals", no_argument, NULL, 'S' },
           { NULL, 0, 0, 0 } };
+  int show = 0;
+  int ret = 1;
 
   assert (argc > 0);
 
@@ -184,14 +186,16 @@ parse_arguments (int argc, char **argv, struct arguments *args)
       switch (chr)
         {
         case 'h':
-          help ();
+          if (!show)
+            help ();
           return 0;
         case 'V':
-          version ();
+          if (!show)
+            version ();
           return 0;
         case 'c':
-          print_command ();
-          return 0;
+          show = 1;
+          continue;
         case 'S':
           args->no_signals = 1;
           continue;
@@ -205,7 +209,16 @@ parse_arguments (int argc, char **argv, struct arguments *args)
     }
 
   if (optind < argc)
-    return set_command (argc, argv);
+    ret = set_command (argc, argv);
+
+  if (ret <= 0)
+    return ret;
+
+  if (show)
+    {
+      print_command ();
+      return 0;
+    }
 
   return 1;
 }
